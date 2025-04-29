@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Trading Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ccxt@4.4.27/dist/ccxt.browser.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .grid-level {
+            transition: all 0.3s ease;
+        }
+        .grid-level.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .log-entry {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #3B82F6;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-6xl mx-auto">
+            <!-- Header -->
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-robot text-blue-500 mr-3"></i>
+                    Grid Trading Bot
+                </h1>
+                <p class="text-gray-600 mt-2">Automated trading with dynamic grid strategy</p>
+            </header>
+
+            <!-- Main Content -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Panel - Controls -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-cogs text-blue-500 mr-2"></i>
+                        Bot Controls
+                    </h2>
+
+                    <!-- Mode Toggle -->
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-gray-700 font-medium">Trading Mode</label>
+                            <div class="flex items-center">
+                                <span class="mr-2 text-sm" id="mode-label">Demo</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="mode-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="ml-2 text-sm">Real</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500">In Demo mode, trades are simulated. Real mode requires API keys.</p>
+                    </div>
+
+                    <!-- API Key Section (Hidden by default) -->
+                    <div id="api-section" class="hidden mb-6">
+                        <h3 class="text-lg font-medium mb-3 text-gray-700">Exchange API</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                <input type="text" id="api-key" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
+                                <input type="password" id="api-secret" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Exchange</label>
+                                <select id="exchange-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="binance">Binance</option>
+                                    <option value="ftx">FTX</option>
+                                    <option value="kraken">Kraken</option>
+                                    <option value="coinbase">Coinbase</option>
+                                </select>
+                            </div>
+                            <button id="connect-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-300">
+                                <i class="fas fa-plug mr-2"></i> Connect
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Trading Parameters -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium mb-3 text-gray-700 flex items-center">
+                            <i class="fas fa-sliders-h text-blue-500 mr-2"></i>
+                            Trading Parameters
+                        </h3>
+                        <div class="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Exchange</label>
+                                <select id="trading-exchange" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="binance">Binance</option>
+                                    <option value="ftx">FTX</option>
+                                    <option value="kraken">Kraken</option>
+                                    <option value="coinbase">Coinbase</option>
+                                    <option value="kucoin">KuCoin</option>
+                                    <option value="bybit">Bybit</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Trading Pair</label>
+                                <input type="text" id="trading-pair" value="BTC/USDT" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Grid Levels</label>
+                                <input type="number" id="grid-levels" value="10" min="3" max="20" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Price Difference (%)</label>
+                                <input type="number" id="price-difference" value="1" min="0.1" max="10" step="0.1" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                <p class="text-xs text-gray-500 mt-1">Percentage difference between grid levels</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Capital per Grid ($)</label>
+                                <input type="number" id="grid-capital" value="10" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">API Timeout (ms)</label>
+                                <input type="number" id="api-timeout" value="30000" min="5000" step="1000" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                <p class="text-xs text-gray-500 mt-1">Increase this value if experiencing timeout errors</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Indicators -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium mb-3 text-gray-700">Technical Indicators</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="use-rsi" checked class="mr-2">
+                                <label for="use-rsi" class="text-sm text-gray-700">Use RSI (Overbought/Oversold)</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="use-bb" checked class="mr-2">
+                                <label for="use-bb" class="text-sm text-gray-700">Use Bollinger Bands</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="use-atr" checked class="mr-2">
+                                <label for="use-atr" class="text-sm text-gray-700">Use ATR (Volatility)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <button id="start-btn" class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-4 rounded-md transition duration-300 shadow-md flex items-center justify-center">
+                            <i class="fas fa-play mr-2"></i> Start Bot
+                        </button>
+                        <button id="stop-btn" class="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-3 px-4 rounded-md transition duration-300 shadow-md flex items-center justify-center" disabled>
+                            <i class="fas fa-stop mr-2"></i> Stop Bot
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Middle Panel - Grid Visualization -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-chart-line text-blue-500 mr-2"></i>
+                        Grid Visualization
+                    </h2>
+                    
+                    <div class="mb-4 flex justify-between items-center">
+                        <div>
+                            <span class="text-sm text-gray-600">Current Price:</span>
+                            <span id="current-price" class="ml-2 text-lg font-bold text-gray-800">-</span>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-600">Status:</span>
+                            <span id="bot-status" class="ml-2 px-2 py-1 rounded text-xs font-medium bg-gray-200 text-gray-800">Idle</span>
+                        </div>
+                    </div>
+                    
+                    <div class="h-64 overflow-y-auto border border-gray-200 rounded-md p-3">
+                        <div id="grid-container" class="space-y-1">
+                            <!-- Grid levels will be dynamically inserted here -->
+                            <div class="text-center text-gray-500 py-10">
+                                <i class="fas fa-chart-bar text-2xl mb-2"></i>
+                                <p>Grid will appear here when bot starts</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span id="lower-bound">Lower: -</span>
+                            <span id="upper-bound">Upper: -</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="price-indicator" class="bg-blue-600 h-2.5 rounded-full" style="width: 50%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel - Logs & Stats -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-terminal text-blue-500 mr-2"></i>
+                        Activity Log
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between">
+                            <div>
+                                <span class="text-sm text-gray-600">Profit/Loss:</span>
+                                <span id="pnl" class="ml-2 font-medium">$0.00</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-600">Trades:</span>
+                                <span id="trade-count" class="ml-2 font-medium">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Detailed P&L Stats</h4>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <span class="text-gray-600">Realized P&L:</span>
+                                <span id="realized-pnl" class="ml-1 font-medium">$0.00</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Unrealized P&L:</span>
+                                <span id="unrealized-pnl" class="ml-1 font-medium">$0.00</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Buy Volume:</span>
+                                <span id="buy-volume" class="ml-1 font-medium">0.000000</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Sell Volume:</span>
+                                <span id="sell-volume" class="ml-1 font-medium">0.000000</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="h-96 overflow-y-auto border border-gray-200 rounded-md p-3">
+                        <div id="log-container" class="space-y-2">
+                            <div class="text-center text-gray-500 py-10">
+                                <i class="fas fa-scroll text-2xl mb-2"></i>
+                                <p>Activity log will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 flex space-x-2">
+                        <button id="clear-log-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md transition duration-300 text-sm">
+                            <i class="fas fa-trash-alt mr-2"></i> Clear Log
+                        </button>
+                        <button id="export-log-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md transition duration-300 text-sm">
+                            <i class="fas fa-download mr-2"></i> Export Log
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Bot state
+        const botState = {
+            mode: 'demo', // 'demo' or 'real'
+            running: false,
+            exchange: null,
+            gridLevels: [],
+            currentPrice: 0,
+            lowerBound: 0,
+            upperBound: 0,
+            trades: [],
+            pnl: 0,
+            intervalId: null
+        };
+
+        // API request settings
+        const apiSettings = {
+            maxRetries: 3,
+            retryDelay: 2000,
+            timeout: 30000
+        };
+
+        // DOM Elements
+        const modeToggle = document.getElementById('mode-toggle');
+        const modeLabel = document.getElementById('mode-label');
+        const apiSection = document.getElementById('api-section');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const connectBtn = document.getElementById('connect-btn');
+        const gridContainer = document.getElementById('grid-container');
+        const logContainer = document.getElementById('log-container');
+        const currentPriceEl = document.getElementById('current-price');
+        const botStatusEl = document.getElementById('bot-status');
+        const priceIndicator = document.getElementById('price-indicator');
+        const lowerBoundEl = document.getElementById('lower-bound');
+        const upperBoundEl = document.getElementById('upper-bound');
+        const pnlEl = document.getElementById('pnl');
+        const tradeCountEl = document.getElementById('trade-count');
+        const clearLogBtn = document.getElementById('clear-log-btn');
+        const exportLogBtn = document.getElementById('export-log-btn');
+
+        // Event Listeners
+        modeToggle.addEventListener('change', toggleMode);
+        startBtn.addEventListener('click', startBot);
+        stopBtn.addEventListener('click', stopBot);
+        connectBtn.addEventListener('click', connectExchange);
+        clearLogBtn.addEventListener('click', clearLogs);
+        exportLogBtn.addEventListener('click', exportLogs);
+
+        // Functions
+        function toggleMode() {
+            if (modeToggle.checked) {
+                botState.mode = 'real';
+                modeLabel.textContent = 'Real';
+                apiSection.classList.remove('hidden');
+            } else {
+                botState.mode = 'demo';
+                modeLabel.textContent = 'Demo';
+                apiSection.classList.add('hidden');
+            }
+            updateUI();
+        }
+
+        function connectExchange() {
+            const exchangeId = document.getElementById('exchange-select').value;
+            const apiKey = document.getElementById('api-key').value;
+            const apiSecret = document.getElementById('api-secret').value;
+            const apiTimeout = parseInt(document.getElementById('api-timeout').value) || 30000;
+            
+            if (!apiKey || !apiSecret) {
+                addLog('Please enter both API Key and Secret', 'error');
+                return;
+            }
+            
+            try {
+                // Initialize exchange
+                const exchangeClass = ccxt[exchangeId];
+                botState.exchange = new exchangeClass({
+                    apiKey: apiKey,
+                    secret: apiSecret,
+                    enableRateLimit: true,
+                    timeout: apiTimeout
+                });
+                
+                addLog(`Connected to ${exchangeId} exchange with ${apiTimeout}ms timeout`, 'success');
+                connectBtn.disabled = true;
+                connectBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i> Connected';
+                connectBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                connectBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+            } catch (error) {
+                addLog(`Error connecting to exchange: ${error.message}`, 'error');
+            }
+        }
+
+        async function startBot() {
+            if (botState.running) return;
+            
+            const tradingPair = document.getElementById('trading-pair').value;
+            const gridLevels = parseInt(document.getElementById('grid-levels').value);
+            const gridCapital = parseFloat(document.getElementById('grid-capital').value);
+            const selectedExchange = document.getElementById('trading-exchange').value;
+            
+            // Get API timeout setting
+            const apiTimeout = parseInt(document.getElementById('api-timeout').value);
+            if (!isNaN(apiTimeout) && apiTimeout >= 5000) {
+                apiSettings.timeout = apiTimeout;
+                addLog(`API timeout set to ${apiTimeout}ms`, 'info');
+            }
+            
+            if (!tradingPair.includes('/')) {
+                addLog('Invalid trading pair format. Use format like BTC/USDT', 'error');
+                return;
+            }
+            
+            if (isNaN(gridCapital) || gridCapital <= 0) {
+                addLog('Please enter a valid capital amount per grid', 'error');
+                return;
+            }
+            
+            if (botState.mode === 'real' && !botState.exchange) {
+                addLog('Please connect to exchange first in Real mode', 'error');
+                return;
+            }
+            
+            botState.running = true;
+            botState.trades = [];
+            botState.pnl = 0;
+            updateUI();
+            
+            addLog(`Starting bot in ${botState.mode} mode for ${tradingPair} on ${selectedExchange}`, 'info');
+            
+            try {
+                // Fetch initial price and calculate grid
+                await fetchPriceAndCalculateGrid(tradingPair, gridLevels, selectedExchange, gridCapital);
+                
+                // Start the trading loop
+                botState.intervalId = setInterval(async () => {
+                    await tradingLoop(tradingPair, gridCapital);
+                }, 2000); // Run every 2 seconds
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                botStatusEl.textContent = 'Running';
+                botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-green-200 text-green-800';
+            } catch (error) {
+                addLog(`Error starting bot: ${error.message}`, 'error');
+                botState.running = false;
+                updateUI();
+            }
+        }
+
+        function stopBot() {
+            if (!botState.running) return;
+            
+            clearInterval(botState.intervalId);
+            botState.running = false;
+            botState.intervalId = null;
+            
+            addLog('Bot stopped', 'info');
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            botStatusEl.textContent = 'Stopped';
+            botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-800';
+            
+            updateUI();
+        }
+
+        async function fetchPriceAndCalculateGrid(tradingPair, gridLevels, selectedExchange, gridCapital) {
+            try {
+                let price;
+                let attempts = 0;
+                let success = false;
+                
+                // Update status to show we're connecting
+                botStatusEl.textContent = 'Connecting...';
+                botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-yellow-200 text-yellow-800';
+                
+                // Try to fetch price with retries
+                while (!success && attempts < apiSettings.maxRetries) {
+                    try {
+                        attempts++;
+                        if (botState.mode === 'demo') {
+                            // Use public API to fetch price
+                            const exchange = new ccxt[selectedExchange || 'binance']({
+                                timeout: apiSettings.timeout // Set longer timeout
+                            });
+                            const ticker = await exchange.fetchTicker(tradingPair);
+                            price = ticker.last;
+                        } else {
+                            // Use authenticated API
+                            const ticker = await botState.exchange.fetchTicker(tradingPair);
+                            price = ticker.last;
+                        }
+                        success = true;
+                    } catch (error) {
+                        if (attempts >= apiSettings.maxRetries) {
+                            throw error; // Rethrow if we've used all retries
+                        }
+                        
+                        addLog(`API request failed (attempt ${attempts}/${apiSettings.maxRetries}): ${error.message}. Retrying...`, 'warning');
+                        
+                        // Wait before retrying
+                        await new Promise(resolve => setTimeout(resolve, apiSettings.retryDelay));
+                    }
+                }
+                
+                botState.currentPrice = price;
+                currentPriceEl.textContent = price.toFixed(2);
+                
+                // Get price difference from input
+                const priceDifferencePercent = parseFloat(document.getElementById('price-difference').value);
+                
+                if (isNaN(priceDifferencePercent) || priceDifferencePercent <= 0) {
+                    throw new Error("Invalid price difference percentage");
+                }
+                
+                // Calculate dynamic bounds based on price difference and grid levels
+                const totalRange = priceDifferencePercent * (gridLevels - 1) / 100;
+                const lowerBound = price * (1 - totalRange/2);
+                const upperBound = price * (1 + totalRange/2);
+                
+                botState.lowerBound = lowerBound;
+                botState.upperBound = upperBound;
+                
+                lowerBoundEl.textContent = `Lower: ${lowerBound.toFixed(2)}`;
+                upperBoundEl.textContent = `Upper: ${upperBound.toFixed(2)}`;
+                
+                // Calculate grid levels
+                botState.gridLevels = [];
+                const step = (upperBound - lowerBound) / (gridLevels - 1);
+                
+                for (let i = 0; i < gridLevels; i++) {
+                    const levelPrice = lowerBound + (i * step);
+                    const type = i % 2 === 0 ? 'buy' : 'sell'; // Alternate buy/sell
+                    botState.gridLevels.push({
+                        price: levelPrice,
+                        type: type,
+                        active: false,
+                        capital: gridCapital // Store the capital for each level
+                    });
+                }
+                
+                renderGrid();
+                updatePriceIndicator();
+                
+                addLog(`Calculated grid with ${gridLevels} levels between ${lowerBound.toFixed(2)} and ${upperBound.toFixed(2)}`, 'info');
+            } catch (error) {
+                throw new Error(`Failed to fetch price or calculate grid: ${error.message}`);
+            }
+        }
+
+        async function tradingLoop(tradingPair, gridCapital) {
+            try {
+                // Add this check at the beginning of the function
+                if (!gridCapital || isNaN(gridCapital)) {
+                    throw new Error("gridCapital is not defined or invalid");
+                }
+                
+                // Fetch current price with retry logic
+                let price;
+                let attempts = 0;
+                let success = false;
+                
+                while (!success && attempts < apiSettings.maxRetries) {
+                    try {
+                        attempts++;
+                        if (botState.mode === 'demo') {
+                            const exchange = new ccxt.binance({
+                                timeout: apiSettings.timeout // Set longer timeout
+                            });
+                            const ticker = await exchange.fetchTicker(tradingPair);
+                            price = ticker.last;
+                        } else {
+                            const ticker = await botState.exchange.fetchTicker(tradingPair);
+                            price = ticker.last;
+                        }
+                        success = true;
+                        
+                        // Reset API status indicator if we were previously having issues
+                        if (botStatusEl.textContent === 'API Issues') {
+                            botStatusEl.textContent = 'Running';
+                            botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-green-200 text-green-800';
+                        }
+                    } catch (error) {
+                        if (attempts >= apiSettings.maxRetries) {
+                            // Update status to show API issues
+                            botStatusEl.textContent = 'API Issues';
+                            botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-yellow-200 text-yellow-800';
+                            
+                            addLog(`API request failed after ${apiSettings.maxRetries} attempts: ${error.message}. Will try again next cycle.`, 'error');
+                            return; // Skip this cycle
+                        }
+                        
+                        // Wait before retrying
+                        await new Promise(resolve => setTimeout(resolve, apiSettings.retryDelay));
+                    }
+                }
+                
+                botState.currentPrice = price;
+                currentPriceEl.textContent = price.toFixed(2);
+                updatePriceIndicator();
+                
+                // Check each grid level
+                for (const level of botState.gridLevels) {
+                    const priceDiff = Math.abs(price - level.price) / level.price;
+                    
+                    if (priceDiff < 0.001) { // Price reached grid level (0.1% threshold)
+                        if (!level.active) {
+                            level.active = true;
+                            
+                            if (level.type === 'buy') {
+                                // Execute buy
+                                const trade = {
+                                    type: 'buy',
+                                    price: level.price,
+                                    amount: gridCapital / level.price,
+                                    time: new Date().toISOString(),
+                                    pnl: 0 // Initial P&L is 0 for buys
+                                };
+                                
+                                if (botState.mode === 'demo') {
+                                    addLog(`DEMO: Bought ${trade.amount.toFixed(6)} ${tradingPair.split('/')[0]} at ${level.price.toFixed(2)}`, 'trade');
+                                } else {
+                                    // Place real order with retry logic
+                                    let orderSuccess = false;
+                                    let orderAttempts = 0;
+                                    
+                                    while (!orderSuccess && orderAttempts < apiSettings.maxRetries) {
+                                        try {
+                                            orderAttempts++;
+                                            const order = await botState.exchange.createLimitBuyOrder(
+                                                tradingPair,
+                                                trade.amount,
+                                                level.price
+                                            );
+                                            trade.orderId = order.id;
+                                            addLog(`REAL: Bought ${trade.amount.toFixed(6)} ${tradingPair.split('/')[0]} at ${level.price.toFixed(2)} (Order ID: ${order.id})`, 'trade');
+                                            orderSuccess = true;
+                                        } catch (error) {
+                                            if (orderAttempts >= apiSettings.maxRetries) {
+                                                addLog(`Error placing buy order after ${apiSettings.maxRetries} attempts: ${error.message}`, 'error');
+                                                continue;
+                                            }
+                                            await new Promise(resolve => setTimeout(resolve, apiSettings.retryDelay));
+                                        }
+                                    }
+                                    
+                                    if (!orderSuccess) continue;
+                                }
+                                
+                                botState.trades.push(trade);
+                                updateStats();
+                            } else {
+                                // Execute sell
+                                const trade = {
+                                    type: 'sell',
+                                    price: level.price,
+                                    amount: gridCapital / level.price,
+                                    time: new Date().toISOString(),
+                                    // Calculate estimated P&L for this sell
+                                    pnl: calculateTradePnL(level.price, gridCapital / level.price)
+                                };
+                                
+                                if (botState.mode === 'demo') {
+                                    addLog(`DEMO: Sold ${trade.amount.toFixed(6)} ${tradingPair.split('/')[0]} at ${level.price.toFixed(2)}`, 'trade');
+                                } else {
+                                    // Place real order with retry logic
+                                    let orderSuccess = false;
+                                    let orderAttempts = 0;
+                                    
+                                    while (!orderSuccess && orderAttempts < apiSettings.maxRetries) {
+                                        try {
+                                            orderAttempts++;
+                                            const order = await botState.exchange.createLimitSellOrder(
+                                                tradingPair,
+                                                trade.amount,
+                                                level.price
+                                            );
+                                            trade.orderId = order.id;
+                                            addLog(`REAL: Sold ${trade.amount.toFixed(6)} ${tradingPair.split('/')[0]} at ${level.price.toFixed(2)} (Order ID: ${order.id})`, 'trade');
+                                            orderSuccess = true;
+                                        } catch (error) {
+                                            if (orderAttempts >= apiSettings.maxRetries) {
+                                                addLog(`Error placing sell order after ${apiSettings.maxRetries} attempts: ${error.message}`, 'error');
+                                                continue;
+                                            }
+                                            await new Promise(resolve => setTimeout(resolve, apiSettings.retryDelay));
+                                        }
+                                    }
+                                    
+                                    if (!orderSuccess) continue;
+                                }
+                                
+                                botState.trades.push(trade);
+                                updateStats();
+                            }
+                            
+                            renderGrid();
+                        }
+                    } else {
+                        level.active = false;
+                    }
+                }
+            } catch (error) {
+                addLog(`Error in trading loop: ${error.message}`, 'error');
+            }
+        }
+
+        function calculateTradePnL(sellPrice, sellAmount) {
+            // Find matching buy trades to calculate P&L
+            const buyTrades = botState.trades.filter(t => t.type === 'buy');
+            if (buyTrades.length === 0) return 0;
+            
+            // Simple FIFO (First In, First Out) method
+            let remainingAmount = sellAmount;
+            let costBasis = 0;
+            
+            for (const buyTrade of buyTrades) {
+                const usedAmount = Math.min(remainingAmount, buyTrade.amount);
+                costBasis += usedAmount * buyTrade.price;
+                remainingAmount -= usedAmount;
+                
+                if (remainingAmount <= 0) break;
+            }
+            
+            // Calculate P&L
+            const revenue = sellPrice * sellAmount;
+            return revenue - costBasis;
+        }
+
+        function updateStats() {
+            // Calculate detailed P&L
+            let totalPnl = 0;
+            let buyVolume = 0;
+            let sellVolume = 0;
+            let buyValue = 0;
+            let sellValue = 0;
+            
+            // Group trades by type
+            const buyTrades = botState.trades.filter(trade => trade.type === 'buy');
+            const sellTrades = botState.trades.filter(trade => trade.type === 'sell');
+            
+            // Calculate buy volume and value
+            buyTrades.forEach(trade => {
+                buyVolume += trade.amount;
+                buyValue += trade.amount * trade.price;
+            });
+            
+            // Calculate sell volume and value
+            sellTrades.forEach(trade => {
+                sellVolume += trade.amount;
+                sellValue += trade.amount * trade.price;
+            });
+            
+            // Calculate realized P&L from completed trades
+            const realizedPnl = sellValue - (sellVolume / buyVolume) * buyValue;
+            
+            // Calculate unrealized P&L from current holdings
+            const currentHoldings = buyVolume - sellVolume;
+            const unrealizedPnl = currentHoldings > 0 ? 
+                currentHoldings * botState.currentPrice - (buyValue - sellValue) : 0;
+            
+            // Total P&L
+            totalPnl = realizedPnl + unrealizedPnl;
+            
+            botState.pnl = totalPnl;
+            pnlEl.textContent = `$${totalPnl.toFixed(2)}`;
+            tradeCountEl.textContent = botState.trades.length;
+            
+            // Update detailed stats in the UI
+            document.getElementById('realized-pnl').textContent = `$${realizedPnl.toFixed(2)}`;
+            document.getElementById('unrealized-pnl').textContent = `$${unrealizedPnl.toFixed(2)}`;
+            document.getElementById('buy-volume').textContent = buyVolume.toFixed(6);
+            document.getElementById('sell-volume').textContent = sellVolume.toFixed(6);
+        }
+
+        function renderGrid() {
+            gridContainer.innerHTML = '';
+            
+            if (!botState.gridLevels.length) {
+                gridContainer.innerHTML = `
+                    <div class="text-center text-gray-500 py-10">
+                        <i class="fas fa-chart-bar text-2xl mb-2"></i>
+                        <p>Grid will appear here when bot starts</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort grid levels by price (descending)
+            const sortedLevels = [...botState.gridLevels].sort((a, b) => b.price - a.price);
+            
+            sortedLevels.forEach(level => {
+                const levelEl = document.createElement('div');
+                levelEl.className = `grid-level p-2 rounded-md flex justify-between items-center ${
+                    level.type === 'buy' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                } ${level.active ? 'active' : ''}`;
+                
+                levelEl.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-${level.type === 'buy' ? 'arrow-down' : 'arrow-up'} ${
+                            level.type === 'buy' ? 'text-green-600' : 'text-red-600'
+                        } mr-2"></i>
+                        <span class="font-medium">${level.type.toUpperCase()}</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold">${level.price.toFixed(2)}</div>
+                        <div class="text-xs text-gray-500">${level.active ? 'TRIGGERED' : 'waiting'}</div>
+                    </div>
+                `;
+                
+                gridContainer.appendChild(levelEl);
+            });
+        }
+
+        function updatePriceIndicator() {
+            if (!botState.lowerBound || !botState.upperBound) return;
+            
+            const range = botState.upperBound - botState.lowerBound;
+            const position = ((botState.currentPrice - botState.lowerBound) / range) * 100;
+            
+            // Clamp between 0% and 100%
+            const clampedPosition = Math.max(0, Math.min(100, position));
+            priceIndicator.style.width = `${clampedPosition}%`;
+        }
+
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry p-2 rounded-md text-sm ${
+                type === 'error' ? 'bg-red-50 text-red-800' :
+                type === 'success' ? 'bg-green-50 text-green-800' :
+                type === 'trade' ? 'bg-blue-50 text-blue-800' :
+                type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-gray-50 text-gray-800'
+            }`;
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            
+            logEntry.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span>${message}</span>
+                    <span class="text-xs opacity-70">${timeString}</span>
+                </div>
+            `;
+            
+            logContainer.prepend(logEntry);
+            
+            // Auto-scroll to top
+            logContainer.scrollTop = 0;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-10">
+                    <i class="fas fa-scroll text-2xl mb-2"></i>
+                    <p>Activity log will appear here</p>
+                </div>
+            `;
+        }
+
+        function exportLogs() {
+            const logs = [];
+            const logEntries = logContainer.querySelectorAll('.log-entry');
+            
+            logEntries.forEach(entry => {
+                logs.push(entry.textContent.trim());
+            });
+            
+            const blob = new Blob([logs.join('\n\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grid-bot-logs-${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function updateUI() {
+            // Update UI based on bot state
+            if (botState.running) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                botStatusEl.textContent = 'Running';
+                botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-green-200 text-green-800';
+            } else {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                botStatusEl.textContent = 'Stopped';
+                botStatusEl.className = 'ml-2 px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-800';
+            }
+        }
+
+        // Initialize
+        updateUI();
+    </script>
+<p style="border-radius: 8px; text-align: center; font-size: 12px; color: #fff; margin-top: 16px;position: fixed; left: 8px; bottom: 8px; z-index: 10; background: rgba(0, 0, 0, 0.8); padding: 4px 8px;">Grid trading bot</p></body>
+</html>
